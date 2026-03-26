@@ -42,35 +42,53 @@ const refill = (data: Data, ip: string) => {
     }
 }
 
+const allowRequest = (data: Data, ip: string) => {
+
+    if (data[ip].tokens >= 1) {
+        data[ip].tokens -= 1;
+        return true;
+    }
+
+    return false;
+
+}
+
 export const LimitterMiddleware = (req: Request, res: Response, next: NextFunction) => {
-    
+
     const ip = req.ip!;
-    console.log('IP address:', ip);
 
     try {
         const data = getData();
 
-        if (Object.keys(data).length === 0) {
-            console.log('No data found');
-            const newData = {
-                [ip]: {
-                    tokens: CAPACITY,
-                    timestamp: Date.now()
-                }
+        const newData = {
+            [ip]: {
+                tokens: CAPACITY,
+                timestamp: Date.now()
             }
+        }
+
+        if (Object.keys(data).length === 0) {
             saveData(newData);
+            return next();
+        } 
+
+        if (!(ip in data)) {
+            saveData({...data, ...newData});
             return next();
         }
 
         if (ip in data) {
 
             data[ip] = refill(data, ip);
+
             const newData = { ...data };
 
-            console.log('New data for IP:', newData);
-            saveData(newData);
-
-            next();
+            if (allowRequest(newData, ip)) {
+                saveData(newData);
+                return next();
+            } else {
+                return res.status(429).json({ message: 'Too Many Requests' });
+            }
 
         }
 
